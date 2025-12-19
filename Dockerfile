@@ -1,28 +1,30 @@
 # ============================================================================
-# MINECRAFT VS CODE - WORKING VERSION
+# VS CODE WITH 30GB RAM MINECRAFT SERVER
 # ============================================================================
 FROM ubuntu:22.04
 
 # ============================================================================
-# SYSTEM SETUP (AS ROOT)
+# INSTALL EVERYTHING AS ROOT
 # ============================================================================
 RUN apt-get update && \
     apt-get install -y \
     curl wget git \
-    python3 python3-pip \
-    openjdk-17-jre-headless \
+    openjdk-21-jdk openjdk-21-jre \
+    python3 python3-pip python3-venv \
+    htop neofetch vim nano tmux screen \
+    net-tools iputils-ping dnsutils \
     unzip zip \
-    htop nano vim \
-    net-tools iputils-ping \
+    software-properties-common \
+    ca-certificates gnupg lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
-# INSTALL CODE-SERVER (AS ROOT)
+# INSTALL CODE-SERVER
 # ============================================================================
 RUN curl -fsSL https://code-server.dev/install.sh | sh
 
 # ============================================================================
-# CREATE USER AND SWITCH
+# CREATE USER WITH PROPER PERMISSIONS
 # ============================================================================
 RUN useradd -m -s /bin/bash coder && \
     echo "coder:coder123" | chpasswd
@@ -31,295 +33,251 @@ USER coder
 WORKDIR /home/coder
 
 # ============================================================================
-# CREATE DIRECTORIES
+# SETUP MINECRAFT SERVER WITH 30GB RAM CAPABILITY
 # ============================================================================
-RUN mkdir -p \
-    .local/bin \
-    .config/code-server \
-    minecraft/server \
-    minecraft/backup \
-    minecraft/logs \
-    logs
+# Create Minecraft directory
+RUN mkdir -p ~/minecraft-30gb/server
+RUN mkdir -p ~/minecraft-30gb/{backup,logs,plugins,worlds}
 
-# ============================================================================
-# DOWNLOAD MINECRAFT SERVER
-# ============================================================================
-RUN cd minecraft/server && \
-    wget -q "https://api.papermc.io/v2/projects/paper/versions/1.21.10/builds/127/downloads/paper-1.21.10-127.jar" -O paper.jar && \
-    echo "eula=true" > eula.txt
+# Download PaperMC 1.21.10 build 127
+RUN cd ~/minecraft-30gb/server && \
+    wget -q "https://api.papermc.io/v2/projects/paper/versions/1.21.10/builds/127/downloads/paper-1.21.10-127.jar" -O paper.jar
 
-# Create server.properties
-RUN cat > minecraft/server/server.properties << 'EOF'
-max-players=20
+# Create optimized server.properties for high RAM
+RUN cat > ~/minecraft-30gb/server/server.properties << 'EOF'
+# 🚀 30GB RAM MINECRAFT SERVER CONFIG
+max-players=100
 server-port=25565
+server-ip=0.0.0.0
 online-mode=false
-motd=Render Minecraft Server
+motd=\u00A7b⚡ 30GB RAM Render Server \u00A7e| \u00A7aPaper 1.21.10
 gamemode=survival
 difficulty=normal
-view-distance=10
+pvp=true
+view-distance=16
+simulation-distance=12
+spawn-protection=0
+max-tick-time=60000
+enable-rcon=true
+rcon.port=25575
+rcon.password=render123
+enable-command-block=true
+player-idle-timeout=0
+network-compression-threshold=512
+use-native-transport=true
+max-world-size=60000000
+entity-broadcast-range-percentage=100
+rate-limit=0
+hardcore=false
+white-list=false
+force-gamemode=false
+allow-nether=true
+allow-flight=true
+max-build-height=320
+announce-player-achievements=true
+enable-query=true
+query.port=25565
+generator-settings={}
+level-type=minecraft\:normal
+resource-pack=
+require-resource-pack=false
+resource-pack-prompt=
 EOF
 
-# ============================================================================
-# CREATE MINECRAFT START SCRIPT
-# ============================================================================
-RUN cat > start_minecraft.sh << 'EOF'
-#!/bin/bash
-echo "========================================"
-echo "STARTING MINECRAFT SERVER"
-echo "========================================"
-echo "Version: PaperMC 1.21.10"
-echo "Port: 25565"
-echo "RAM: ${MC_RAM:-2G}"
-echo "========================================"
+# Accept EULA
+RUN echo "eula=true" > ~/minecraft-30gb/server/eula.txt
 
-cd ~/minecraft/server
-java -Xms1G -Xmx${MC_RAM:-2G} -jar paper.jar --nogui
+# ============================================================================
+# CREATE ADVANCED STARTUP SCRIPTS
+# ============================================================================
+# Main start script with 24GB RAM allocation
+RUN cat > ~/start_minecraft_30gb.sh << 'EOF'
+#!/bin/bash
+clear
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║          🚀 30GB RAM MINECRAFT SERVER STARTUP               ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+echo "📊 Available Memory: $(free -h | grep Mem | awk '{print $2}')"
+echo "🎮 Allocating RAM: ${MINECRAFT_RAM:-24G} to Minecraft"
+echo "🔧 Java Version: $(java --version | head -1)"
+echo "📁 Server Location: ~/minecraft-30gb/server"
+echo "🌐 Port: 25565"
+echo ""
+echo "Starting server with optimized JVM flags..."
+echo "═══════════════════════════════════════════════════════════════"
+
+cd ~/minecraft-30gb/server
+
+# Start with optimized JVM flags for high RAM
+java -Xms8G -Xmx${MINECRAFT_RAM:-24G} \
+  -XX:+UseG1GC \
+  -XX:+ParallelRefProcEnabled \
+  -XX:MaxGCPauseMillis=150 \
+  -XX:+UnlockExperimentalVMOptions \
+  -XX:+DisableExplicitGC \
+  -XX:+AlwaysPreTouch \
+  -XX:G1NewSizePercent=30 \
+  -XX:G1MaxNewSizePercent=40 \
+  -XX:G1HeapRegionSize=8M \
+  -XX:G1ReservePercent=20 \
+  -XX:InitiatingHeapOccupancyPercent=15 \
+  -Dusing.aikars.flags=true \
+  -Daikars.new.flags=true \
+  -jar paper.jar \
+  --nogui
 EOF
 
-RUN chmod +x start_minecraft.sh
-
-# ============================================================================
-# CREATE MINECRAFT UPDATE SCRIPT
-# ============================================================================
-RUN cat > update_minecraft.sh << 'EOF'
+# Quick start script (simple)
+RUN cat > ~/minecraft_start.sh << 'EOF'
 #!/bin/bash
-echo "Checking for Minecraft updates..."
-cd ~/minecraft/server
+cd ~/minecraft-30gb/server
+java -Xms8G -Xmx24G -jar paper.jar --nogui
+EOF
 
-# Backup current
-if [ -f "paper.jar" ]; then
-    cp paper.jar "paper_backup_$(date +%Y%m%d_%H%M%S).jar"
+# Monitor script
+RUN cat > ~/minecraft_monitor.sh << 'EOF'
+#!/bin/bash
+echo "=== 30GB MINECRAFT SERVER MONITOR ==="
+echo ""
+echo "📊 SYSTEM RESOURCES:"
+echo "Total RAM: $(free -h | grep Mem | awk '{print $2}')"
+echo "Used RAM: $(free -h | grep Mem | awk '{print $3}')"
+echo "Free RAM: $(free -h | grep Mem | awk '{print $4}')"
+echo "CPU Cores: $(nproc)"
+echo ""
+echo "🎮 MINECRAFT STATUS:"
+if pgrep -f paper.jar > /dev/null; then
+    PID=$(pgrep -f paper.jar)
+    echo "✅ Server is RUNNING (PID: $PID)"
+    echo "RAM Usage: $(ps -p $PID -o rss= | awk '{printf "%.2f GB\n", $1/1024/1024}')"
+    echo "Uptime: $(ps -p $PID -o etime=)"
+    
+    # Check if RCON is responding
+    if timeout 2 nc -z localhost 25575; then
+        echo "🟢 RCON Port (25575) is open"
+    fi
+else
+    echo "❌ Server is STOPPED"
 fi
+echo ""
+echo "🌐 NETWORK PORTS:"
+netstat -tulpn | grep -E "(25565|25575)" || echo "No Minecraft ports listening"
+EOF
+
+# Backup script
+RUN cat > ~/minecraft_backup.sh << 'EOF'
+#!/bin/bash
+BACKUP_DIR=~/minecraft-30gb/backup/$(date +%Y%m%d_%H%M%S)
+mkdir -p "$BACKUP_DIR"
+echo "💾 Creating backup to: $BACKUP_DIR"
+cp -r ~/minecraft-30gb/server/world "$BACKUP_DIR/" 2>/dev/null || echo "No world to backup"
+cp ~/minecraft-30gb/server/*.json "$BACKUP_DIR/" 2>/dev/null
+cp ~/minecraft-30gb/server/server.properties "$BACKUP_DIR/" 2>/dev/null
+cp ~/minecraft-30gb/server/paper.jar "$BACKUP_DIR/" 2>/dev/null
+echo "✅ Backup completed!"
+EOF
+
+# Update script
+RUN cat > ~/minecraft_update.sh << 'EOF'
+#!/bin/bash
+echo "🔄 Checking for Minecraft updates..."
+cd ~/minecraft-30gb/server
 
 # Get latest build
 LATEST_BUILD=$(curl -s "https://api.papermc.io/v2/projects/paper/versions/1.21.10" | \
     grep -o '"builds":\[[0-9,]*\]' | grep -o '[0-9][0-9,]*' | tr ',' '\n' | tail -1)
 
-if [ -n "$LATEST_BUILD" ]; then
-    echo "Latest build: $LATEST_BUILD"
+if [ -n "$LATEST_BUILD" ] && [ "$LATEST_BUILD" -gt 127 ]; then
+    echo "📥 New build available: $LATEST_BUILD (current: 127)"
+    
+    # Backup
+    ./../minecraft_backup.sh
     
     # Download new version
     wget -q "https://api.papermc.io/v2/projects/paper/versions/1.21.10/builds/$LATEST_BUILD/downloads/paper-1.21.10-$LATEST_BUILD.jar" -O paper_new.jar
     
     if [ -f "paper_new.jar" ]; then
         mv paper_new.jar paper.jar
-        echo "Updated to PaperMC 1.21.10 build $LATEST_BUILD"
+        echo "✅ Updated to PaperMC 1.21.10 build $LATEST_BUILD"
+        echo "🔄 Restart server to apply update"
     else
-        echo "Download failed"
+        echo "❌ Download failed"
     fi
 else
-    echo "Could not fetch latest version"
+    echo "✅ Already on latest version"
 fi
 EOF
 
-RUN chmod +x update_minecraft.sh
+# Make all scripts executable
+RUN chmod +x ~/*.sh
 
 # ============================================================================
-# DOWNLOAD CLOUDFLARED
+# INSTALL CLOUDFLARED FOR TUNNELING
 # ============================================================================
-# Download cloudflared to user bin directory
-RUN wget -q "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" -O .local/bin/cloudflared && \
-    chmod +x .local/bin/cloudflared
+RUN mkdir -p ~/.local/bin && \
+    wget -q "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" -O ~/.local/bin/cloudflared && \
+    chmod +x ~/.local/bin/cloudflared
 
 # Create tunnel setup script
-RUN cat > setup_tunnel.sh << 'EOF'
+RUN cat > ~/setup_minecraft_tunnel.sh << 'EOF'
 #!/bin/bash
-echo "CLOUDFLARE TUNNEL SETUP"
-echo "========================"
+echo "🌐 CLOUDFLARE TUNNEL SETUP FOR MINECRAFT"
+echo "========================================"
 echo ""
-echo "1. To login to Cloudflare:"
+echo "📋 Steps to expose your 30GB Minecraft server:"
+echo ""
+echo "1. Login to Cloudflare:"
 echo "   ~/.local/bin/cloudflared tunnel login"
 echo ""
-echo "2. To create a tunnel:"
-echo "   ~/.local/bin/cloudflared tunnel create minecraft-tunnel"
+echo "2. Create a tunnel:"
+echo "   ~/.local/bin/cloudflared tunnel create 30gb-minecraft"
 echo ""
-echo "3. Create config file:"
+echo "3. Configure DNS in Cloudflare dashboard:"
+echo "   Add CNAME: minecraft -> YOUR_TUNNEL_ID.cfargotunnel.com"
+echo ""
+echo "4. Create config file:"
 echo "   mkdir -p ~/.cloudflared"
 echo "   cat > ~/.cloudflared/config.yml << 'CONFIG'"
 echo "   tunnel: YOUR_TUNNEL_ID"
 echo "   credentials-file: /home/coder/.cloudflared/cert.pem"
 echo "   ingress:"
-echo "     - hostname: minecraft.example.com"
+echo "     - hostname: minecraft.yourdomain.com"
 echo "       service: tcp://localhost:25565"
-echo "     - hostname: vscode.example.com"
-echo "       service: http://localhost:8080"
 echo "     - service: http_status:404"
 echo "   CONFIG"
 echo ""
-echo "4. Run the tunnel:"
-echo "   ~/.local/bin/cloudflared tunnel run minecraft-tunnel"
+echo "5. Run the tunnel:"
+echo "   ~/.local/bin/cloudflared tunnel run 30gb-minecraft"
+echo ""
+echo "🎮 Your 30GB Minecraft server will be available at:"
+echo "   minecraft.yourdomain.com:25565"
 EOF
 
-RUN chmod +x setup_tunnel.sh
+RUN chmod +x ~/setup_minecraft_tunnel.sh
 
 # ============================================================================
-# CREATE MANAGEMENT DASHBOARD
+# CREATE VS CODE CONFIG
 # ============================================================================
-RUN cat > manage.py << 'EOF'
-#!/usr/bin/env python3
-from http.server import HTTPServer, SimpleHTTPRequestHandler
-import subprocess
-import json
-import os
-
-class Handler(SimpleHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == '/':
-            self.send_response(200)
-            self.send_header('Content-type', 'text/html')
-            self.end_headers()
-            html = '''
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Minecraft Server Manager</title>
-                <style>
-                    body { font-family: Arial; margin: 40px; background: #f0f0f0; }
-                    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
-                    button { padding: 10px 20px; margin: 5px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
-                    button:hover { background: #45a049; }
-                    .log { background: #333; color: #0f0; padding: 10px; border-radius: 5px; font-family: monospace; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <h1>🎮 Minecraft Server Control Panel</h1>
-                    
-                    <div>
-                        <h2>Server Control</h2>
-                        <button onclick="sendCommand('start')">▶ Start Server</button>
-                        <button onclick="sendCommand('stop')">⏹ Stop Server</button>
-                        <button onclick="sendCommand('update')">🔄 Update Server</button>
-                        <button onclick="sendCommand('status')">📊 Check Status</button>
-                    </div>
-                    
-                    <div style="margin-top: 20px;">
-                        <h2>Connection Info</h2>
-                        <p><strong>VS Code:</strong> <a href="http://localhost:8080" target="_blank">http://localhost:8080</a></p>
-                        <p><strong>Minecraft Server:</strong> localhost:25565</p>
-                        <p><strong>RAM:</strong> <input type="text" id="ram" value="2G" placeholder="e.g., 2G, 3G"></p>
-                    </div>
-                    
-                    <div id="output" class="log"></div>
-                </div>
-                
-                <script>
-                async function sendCommand(cmd) {
-                    const ram = document.getElementById('ram').value;
-                    const response = await fetch('/command', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({command: cmd, ram: ram})
-                    });
-                    const data = await response.json();
-                    document.getElementById('output').textContent = data.message;
-                }
-                </script>
-            </body>
-            </html>
-            '''
-            self.wfile.write(html.encode())
-        else:
-            super().do_GET()
-    
-    def do_POST(self):
-        if self.path == '/command':
-            content_length = int(self.headers['Content-Length'])
-            post_data = self.rfile.read(content_length)
-            data = json.loads(post_data.decode())
-            
-            response = {'success': True, 'message': 'Command executed'}
-            
-            if data['command'] == 'start':
-                ram = data.get('ram', '2G')
-                os.environ['MC_RAM'] = ram
-                subprocess.Popen(['bash', '-c', 'cd ~ && ./start_minecraft.sh > ~/logs/minecraft.log 2>&1 &'])
-                response['message'] = f'Starting Minecraft server with {ram} RAM...'
-            
-            elif data['command'] == 'stop':
-                subprocess.run(['pkill', '-f', 'paper.jar'])
-                response['message'] = 'Stopping Minecraft server...'
-            
-            elif data['command'] == 'update':
-                result = subprocess.run(['bash', '-c', './update_minecraft.sh'], capture_output=True, text=True)
-                response['message'] = result.stdout
-            
-            elif data['command'] == 'status':
-                result = subprocess.run(['ps', 'aux', '|', 'grep', 'paper.jar'], capture_output=True, text=True, shell=True)
-                if 'paper.jar' in result.stdout:
-                    response['message'] = 'Server is running\n' + result.stdout
-                else:
-                    response['message'] = 'Server is not running'
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(response).encode())
-
-print("Starting Minecraft Manager on http://localhost:8081")
-HTTPServer(('0.0.0.0', 8081), Handler).serve_forever()
-EOF
-
-RUN chmod +x manage.py
-
-# ============================================================================
-# VS CODE CONFIGURATION
-# ============================================================================
-RUN cat > .config/code-server/config.yaml << 'EOF'
+RUN mkdir -p ~/.config/code-server
+RUN cat > ~/.config/code-server/config.yaml << 'EOF'
 bind-addr: 0.0.0.0:8080
 auth: none
 cert: false
 disable-telemetry: true
 disable-update-check: true
+disable-workspace-trust: true
+disable-getting-started-override: true
 EOF
 
 # ============================================================================
-# STARTUP SCRIPT
+# CREATE STARTUP INFO
 # ============================================================================
-RUN cat > start_services.sh << 'EOF'
-#!/bin/bash
-echo "========================================"
-echo "MINECRAFT VS CODE SERVER"
-echo "========================================"
+RUN cat > ~/WELCOME.md << 'EOF'
+# 🚀 30GB RAM MINECRAFT VS CODE SERVER
 
-# Start code-server
-echo "Starting VS Code..."
-code-server --bind-addr 0.0.0.0:8080 --auth none &
+## 🎮 MINECRAFT SERVER COMMANDS:
 
-# Start management dashboard
-echo "Starting Manager Dashboard..."
-python3 manage.py &
-
-echo ""
-echo "✅ Services Started Successfully!"
-echo ""
-echo "🔗 Access URLs:"
-echo "   VS Code:      http://localhost:8080"
-echo "   Manager:      http://localhost:8081"
-echo "   Minecraft:    localhost:25565"
-echo ""
-echo "🛠️  Quick Commands:"
-echo "   Start Minecraft:  ./start_minecraft.sh"
-echo "   Update Server:    ./update_minecraft.sh"
-echo "   Setup Tunnel:     ./setup_tunnel.sh"
-echo "   View Logs:        tail -f ~/logs/minecraft.log"
-echo ""
-echo "========================================"
-
-# Keep container running
-tail -f /dev/null
-EOF
-
-RUN chmod +x start_services.sh
-
-# ============================================================================
-# EXPOSE PORTS
-# ============================================================================
-EXPOSE 8080
-EXPOSE 8081
-EXPOSE 25565
-
-# ============================================================================
-# DEFAULT COMMAND
-# ============================================================================
-CMD ["bash", "-c", "./start_services.sh"]
+### Start Minecraft (with 24GB RAM):
+```bash
+./start_minecraft_30gb.sh
