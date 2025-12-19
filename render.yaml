@@ -5,10 +5,6 @@ services:
     dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
-    envVars:
-      - key: PASSWORD
-        sync: false
-        value: coder123  # CHANGE THIS!
     healthCheckPath: /health
     healthCheckTimeout: 30
     autoDeploy: true
