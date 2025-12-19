@@ -1,14 +1,21 @@
 services:
   - type: web
-    name: vs-code-cloud-terminal
+    name: full-root-vscode
     env: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
-    healthCheckPath: /health
+    healthCheckPath: /
     healthCheckTimeout: 30
     autoDeploy: true
     disk:
-      name: workspace-storage
+      name: root-workspace
       mountPath: /home/coder/workspace
       sizeGB: 1
+    envVars:
+      - key: ROOT_PASSWORD
+        sync: false
+        value: root123
+      - key: CODER_PASSWORD  
+        sync: false
+        value: coder123
