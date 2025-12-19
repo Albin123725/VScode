@@ -4,9 +4,8 @@ __pycache__
 .env
 node_modules
 *.log
-.vscode
 .DS_Store
 *.swp
 *.swo
-dist/
 build/
+dist/
