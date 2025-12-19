@@ -1,0 +1,8 @@
+bind-addr: 0.0.0.0:8080
+auth: password
+password: ${PASSWORD:-coder123}
+cert: false
+user-data-dir: /home/coder/.local/share/code-server
+log: debug
+disable-telemetry: true
+disable-update-check: true
