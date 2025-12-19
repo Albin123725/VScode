@@ -56,21 +56,26 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # ============================================================================
-# CODE-SERVER INSTALLATION - SIMPLIFIED METHOD
+# CODE-SERVER INSTALLATION - FIXED URL
 # ============================================================================
-# Method 1: Install via direct binary download (MOST RELIABLE)
-RUN ARCH=$(uname -m) && \
+# Get the LATEST version automatically
+RUN LATEST_VERSION=$(curl -s https://api.github.com/repos/coder/code-server/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
+    echo "Installing code-server version: $LATEST_VERSION" && \
+    ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
         ARCH="amd64"; \
     elif [ "$ARCH" = "aarch64" ]; then \
         ARCH="arm64"; \
+    else \
+        echo "Unsupported architecture: $ARCH" && exit 1; \
     fi && \
-    VERSION="4.24.0" && \
-    wget -q "https://github.com/coder/code-server/releases/download/v${VERSION}/code-server-${VERSION}-linux-${ARCH}.tar.gz" -O /tmp/code-server.tar.gz && \
+    # CORRECT URL FORMAT:
+    wget "https://github.com/coder/code-server/releases/download/v${LATEST_VERSION}/code-server_${LATEST_VERSION}_linux_${ARCH}.tar.gz" -O /tmp/code-server.tar.gz && \
     tar -xzf /tmp/code-server.tar.gz -C /tmp && \
-    mv /tmp/code-server-${VERSION}-linux-${ARCH} /usr/lib/code-server && \
+    mv /tmp/code-server_${LATEST_VERSION}_linux_${ARCH} /usr/lib/code-server && \
     ln -s /usr/lib/code-server/bin/code-server /usr/local/bin/code-server && \
-    rm -f /tmp/code-server.tar.gz
+    rm -f /tmp/code-server.tar.gz && \
+    echo "✅ code-server installed successfully"
 
 # ============================================================================
 # CLOUDFLARED INSTALLATION
@@ -118,8 +123,8 @@ RUN pip3 install --user selenium webdriver-manager schedule requests beautifulso
 # ============================================================================
 # VERIFY INSTALLATION
 # ============================================================================
-# Test code-server installation
-RUN /usr/local/bin/code-server --version && echo "✅ code-server installed successfully"
+# Test code-server installation (using absolute path)
+RUN /usr/local/bin/code-server --version
 
 # Switch back to root for CMD
 USER root
