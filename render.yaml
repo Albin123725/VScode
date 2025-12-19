@@ -1,14 +1,13 @@
 services:
   - type: web
-    name: full-root-vscode
+    name: minecraft-vscode
     env: docker
     dockerfilePath: ./Dockerfile
-    dockerContext: .
     plan: free
     healthCheckPath: /
     healthCheckTimeout: 30
     autoDeploy: true
     disk:
-      name: root-workspace
-      mountPath: /home/coder/workspace
+      name: minecraft-data
+      mountPath: /home/coder/minecraft
       sizeGB: 1
