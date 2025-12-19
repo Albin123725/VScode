@@ -1,11 +1,6 @@
 .git
-__pycache__
-*.pyc
+*.log
 .env
 node_modules
-*.log
+__pycache__
 .DS_Store
-*.swp
-*.swo
-build/
-dist/
