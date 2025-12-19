@@ -16,6 +16,6 @@ services:
       - key: ROOT_PASSWORD
         sync: false
         value: root123
-      - key: CODER_PASSWORD  
+      - key: CODER_PASSWORD
         sync: false
         value: coder123
