@@ -1,162 +1,123 @@
 # ============================================================================
-# MINECRAFT VS CODE ON RENDER - USER SPACE SETUP
+# WORKING MINECRAFT VS CODE FOR RENDER
 # ============================================================================
 FROM ubuntu:22.04
 
-# Basic configuration
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=Etc/UTC
-
-# Install system dependencies
-RUN apt-get update && \
-    apt-get install -y \
-    curl wget git python3 python3-pip \
-    unzip zip nano vim htop \
-    net-tools iputils-ping dnsutils \
-    screen tmux \
-    ca-certificates \
+# ============================================================================
+# INSTALL SYSTEM PACKAGES AS ROOT
+# ============================================================================
+RUN apt-get update && apt-get install -y \
+    curl wget git \
+    python3 python3-pip \
+    openjdk-17-jre-headless \
+    nano vim htop \
     && rm -rf /var/lib/apt/lists/*
 
-# Create user FIRST (before code-server install)
-RUN useradd -m -s /bin/bash coder && \
-    echo "coder:coder123" | chpasswd
-
 # ============================================================================
-# INSTALL VS CODE SERVER AS ROOT
+# INSTALL CODE-SERVER
 # ============================================================================
-# Install code-server system-wide
 RUN curl -fsSL https://code-server.dev/install.sh | sh
 
 # ============================================================================
-# SWITCH TO CODER USER
+# CREATE USER AND SETUP
 # ============================================================================
+RUN useradd -m -s /bin/bash coder && \
+    echo "coder:coder123" | chpasswd
+
+# Switch to coder user for remaining setup
 USER coder
 WORKDIR /home/coder
 
 # ============================================================================
-# SETUP LOCAL DIRECTORIES
+# CREATE DIRECTORIES
 # ============================================================================
 RUN mkdir -p \
-    ~/.local/{bin,lib,share,opt,cloudflared} \
+    ~/.local/bin \
     ~/.config/code-server \
+    ~/minecraft/server \
     ~/logs
 
 # ============================================================================
-# INSTALL JAVA 21 (USER SPACE)
+# DOWNLOAD MINECRAFT SERVER
 # ============================================================================
-RUN mkdir -p ~/.local/java && \
-    cd ~/.local/java && \
-    wget -q "https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.tar.gz" -O java.tar.gz && \
-    tar -xzf java.tar.gz --strip-components=1 && \
-    rm java.tar.gz && \
-    echo "Java 21 installed in ~/.local/java"
-
-# ============================================================================
-# MINECRAFT SERVER INSTALLATION
-# ============================================================================
-# Create Minecraft directory structure
-RUN mkdir -p \
-    ~/minecraft/{server,backup,plugins,logs,worlds,configs} \
-    ~/minecraft/server/plugins
-
-# Download PaperMC 1.21.10 build 127
 RUN cd ~/minecraft/server && \
-    echo "Downloading PaperMC 1.21.10 build 127..." && \
-    wget -q "https://api.papermc.io/v2/projects/paper/versions/1.21.10/builds/127/downloads/paper-1.21.10-127.jar" -O paper.jar && \
-    echo "Minecraft server downloaded"
+    wget -q "https://api.papermc.io/v2/projects/paper/versions/1.21.10/builds/127/downloads/paper-1.21.10-127.jar" -O paper.jar
+
+# Create eula.txt
+RUN echo "eula=true" > ~/minecraft/server/eula.txt
 
 # Create server.properties
 RUN cat > ~/minecraft/server/server.properties << 'EOF'
 max-players=20
 server-port=25565
 online-mode=false
-server-ip=0.0.0.0
 motd=Render Minecraft Server
 gamemode=survival
 difficulty=normal
-pvp=true
-view-distance=8
-simulation-distance=6
-spawn-protection=0
-max-tick-time=60000
-enable-rcon=false
-enable-command-block=true
-player-idle-timeout=0
 EOF
 
-# Create eula.txt
-RUN echo "eula=true" > ~/minecraft/server/eula.txt
-
 # ============================================================================
-# MINECRAFT STARTUP SCRIPTS
+# CREATE MINECRAFT START SCRIPT
 # ============================================================================
-# Main start script
-RUN cat > ~/minecraft/start.sh << 'EOF'
+RUN cat > ~/start_minecraft.sh << 'EOF'
 #!/bin/bash
 cd ~/minecraft/server
-
-echo "========================================"
-echo "STARTING MINECRAFT SERVER"
-echo "========================================"
-echo "Version: PaperMC 1.21.10 build 127"
+echo "Starting Minecraft Server..."
+echo "Version: PaperMC 1.21.10"
 echo "Port: 25565"
-echo "RAM: ${MC_RAM:-3G}"
-echo "Java: $(java --version | head -1)"
-echo "========================================"
-
-# Use custom Java from user space
-export JAVA_HOME="$HOME/.local/java"
-export PATH="$JAVA_HOME/bin:$PATH"
-
-# Start server
-java -Xms1G -Xmx${MC_RAM:-3G} -jar paper.jar --nogui
+echo "RAM: ${MC_RAM:-2G}"
+java -Xms1G -Xmx${MC_RAM:-2G} -jar paper.jar --nogui
 EOF
 
-# Minecraft update script
-RUN cat > ~/minecraft/update.sh << 'EOF'
+RUN chmod +x ~/start_minecraft.sh
+
+# ============================================================================
+# CREATE MINECRAFT UPDATE SCRIPT
+# ============================================================================
+RUN cat > ~/update_minecraft.sh << 'EOF'
 #!/bin/bash
 echo "Checking for Minecraft updates..."
 cd ~/minecraft/server
 
 # Get latest build
-LATEST_BUILD=$(curl -s "https://api.papermc.io/v2/projects/paper/versions/1.21.10" | grep -o '"builds":\[[0-9,]*\]' | grep -o '[0-9][0-9,]*' | tr ',' '\n' | tail -1)
+LATEST_BUILD=$(curl -s "https://api.papermc.io/v2/projects/paper/versions/1.21.10" | \
+    grep -o '"builds":\[[0-9,]*\]' | grep -o '[0-9][0-9,]*' | tr ',' '\n' | tail -1)
 
 if [ -n "$LATEST_BUILD" ] && [ "$LATEST_BUILD" -gt 127 ]; then
-    echo "New build available: $LATEST_BUILD"
-    
-    # Backup
+    echo "New version available: build $LATEST_BUILD"
+    echo "Backing up current server..."
     cp paper.jar "paper_backup_$(date +%Y%m%d_%H%M%S).jar"
     
-    # Download new version
+    echo "Downloading new version..."
     wget -q "https://api.papermc.io/v2/projects/paper/versions/1.21.10/builds/$LATEST_BUILD/downloads/paper-1.21.10-$LATEST_BUILD.jar" -O paper_new.jar
     
     if [ -f "paper_new.jar" ]; then
         mv paper_new.jar paper.jar
         echo "Updated to PaperMC 1.21.10 build $LATEST_BUILD"
     else
-        echo "Download failed, keeping version 127"
+        echo "Download failed, keeping current version"
     fi
 else
-    echo "Already on latest version"
+    echo "Already on latest version (build 127)"
 fi
 EOF
 
-# Make scripts executable
-RUN chmod +x ~/minecraft/*.sh
+RUN chmod +x ~/update_minecraft.sh
 
 # ============================================================================
-# CLOUDFLARED INSTALLATION
+# DOWNLOAD CLOUDFLARED TO USER BIN
 # ============================================================================
-RUN cd ~/.local/cloudflared && \
-    wget -q "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" && \
+RUN cd ~/.local/bin && \
+    wget -q "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" -O cloudflared && \
     chmod +x cloudflared
 
-# Create tunnel setup script
-RUN cat > ~/setup_tunnel.sh << 'EOF'
+# ============================================================================
+# CREATE CLOUDFLARE SETUP SCRIPT
+# ============================================================================
+RUN cat > ~/setup_cloudflare.sh << 'EOF'
 #!/bin/bash
-echo "CLOUDFLARE TUNNEL SETUP"
-echo "========================"
-
+echo "Cloudflare Tunnel Setup"
+echo "======================="
 mkdir -p ~/.cloudflared
 
 cat > ~/.cloudflared/config.yml << 'CONFIG'
@@ -170,19 +131,18 @@ ingress:
   - service: http_status:404
 CONFIG
 
-echo "Config created: ~/.cloudflared/config.yml"
+echo "Config created at ~/.cloudflared/config.yml"
 echo ""
-echo "Next steps:"
-echo "1. ~/.local/cloudflared/cloudflared tunnel login"
-echo "2. ~/.local/cloudflared/cloudflared tunnel create minecraft-tunnel"
-echo "3. Configure DNS in Cloudflare dashboard"
-echo "4. ~/.local/cloudflared/cloudflared tunnel run minecraft-tunnel"
+echo "To setup Cloudflare Tunnel:"
+echo "1. Login: ~/.local/bin/cloudflared tunnel login"
+echo "2. Create tunnel: ~/.local/bin/cloudflared tunnel create minecraft-tunnel"
+echo "3. Run: ~/.local/bin/cloudflared tunnel run minecraft-tunnel"
 EOF
 
-RUN chmod +x ~/setup_tunnel.sh
+RUN chmod +x ~/setup_cloudflare.sh
 
 # ============================================================================
-# VS CODE CONFIGURATION
+# CREATE VS CODE CONFIG
 # ============================================================================
 RUN cat > ~/.config/code-server/config.yaml << 'EOF'
 bind-addr: 0.0.0.0:8080
@@ -193,84 +153,41 @@ disable-update-check: true
 EOF
 
 # ============================================================================
-# STARTUP SCRIPT
+# CREATE STARTUP SCRIPT
 # ============================================================================
-RUN cat > ~/start_services.sh << 'EOF'
+RUN cat > ~/startup.sh << 'EOF'
 #!/bin/bash
-echo "Starting Minecraft VS Code..."
+echo "========================================"
+echo "Minecraft VS Code Server"
+echo "========================================"
 
-# Start code-server
+# Start VS Code
 code-server --bind-addr 0.0.0.0:8080 --auth none &
 
-# Create simple management script
-cat > ~/manage.py << 'PYTHON'
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import subprocess
-import json
-
-class Handler(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header('Content-type', 'text/html')
-        self.end_headers()
-        html = '''
-        <html>
-        <body>
-            <h1>Minecraft Server Control</h1>
-            <button onclick="start()">Start Server</button>
-            <button onclick="stop()">Stop Server</button>
-            <script>
-            async function start() {
-                await fetch('/start', {method: 'POST'});
-                alert('Starting server...');
-            }
-            async function stop() {
-                await fetch('/stop', {method: 'POST'});
-                alert('Stopping server...');
-            }
-            </script>
-        </body>
-        </html>
-        '''
-        self.wfile.write(html.encode())
-    
-    def do_POST(self):
-        if self.path == '/start':
-            subprocess.Popen(['bash', '-c', 'cd ~/minecraft && ./start.sh > logs/minecraft.log 2>&1 &'])
-        elif self.path == '/stop':
-            subprocess.run(['pkill', '-f', 'paper.jar'])
-        self.send_response(200)
-        self.end_headers()
-
-print("Starting manager on port 8081...")
-HTTPServer(('0.0.0.0', 8081), Handler).serve_forever()
-PYTHON
-
-# Start manager
-python3 ~/manage.py &
-
 echo ""
-echo "Services started!"
-echo "VS Code: http://localhost:8080"
-echo "Manager: http://localhost:8081"
-echo "Minecraft: localhost:25565"
+echo "Services:"
+echo "• VS Code: http://localhost:8080"
+echo "• Minecraft: localhost:25565"
 echo ""
-echo "To start Minecraft: cd ~/minecraft && ./start.sh"
+echo "Commands:"
+echo "• Start Minecraft: ~/start_minecraft.sh"
+echo "• Update Minecraft: ~/update_minecraft.sh"
+echo "• Setup Cloudflare: ~/setup_cloudflare.sh"
+echo "========================================"
 
 # Keep container running
 tail -f /dev/null
 EOF
 
-RUN chmod +x ~/start_services.sh
+RUN chmod +x ~/startup.sh
 
 # ============================================================================
 # EXPOSE PORTS
 # ============================================================================
 EXPOSE 8080
-EXPOSE 8081
 EXPOSE 25565
 
 # ============================================================================
-# SET DEFAULT COMMAND
+# DEFAULT COMMAND
 # ============================================================================
-CMD ["bash", "-c", "~/start_services.sh"]
+CMD ["bash", "-c", "~/startup.sh"]
