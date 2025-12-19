@@ -6,13 +6,22 @@ echo "Starting VS Code Cloud Terminal..."
 mkdir -p /home/coder/health-check
 echo "<h1>VS Code Cloud Terminal</h1><p>Service is running</p>" > /home/coder/health-check/index.html
 
-# Install VS Code extensions as coder user (if not already installed)
-if [ ! -d "/home/coder/.local/share/code-server/extensions" ]; then
-    echo "Installing VS Code extensions..."
-    su -c "code-server --install-extension ms-python.python" coder
-    su -c "code-server --install-extension formulahendry.code-runner" coder
-    su -c "code-server --install-extension yzhang.markdown-all-in-one" coder
+# Verify code-server exists
+if ! command -v code-server &> /dev/null; then
+    echo "❌ code-server not found! Installing via alternative method..."
+    
+    # Try to install via npm
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    apt-get install -y nodejs
+    npm install -g code-server
+    
+    if ! command -v code-server &> /dev/null; then
+        echo "❌❌ FATAL: Cannot install code-server"
+        exit 1
+    fi
 fi
+
+echo "✅ code-server verified: $(code-server --version)"
 
 # Start health check server
 echo "Starting health check server..."
