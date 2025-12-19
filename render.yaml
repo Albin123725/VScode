@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: vs-code-cloud-terminal
+    env: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: PASSWORD
+        sync: false
+        value: coder123  # CHANGE THIS TO SOMETHING SECURE!
+    healthCheckPath: /health
+    healthCheckTimeout: 30
+    autoDeploy: true
+    disk:
+      name: workspace-storage
+      mountPath: /home/coder/workspace
+      sizeGB: 1
