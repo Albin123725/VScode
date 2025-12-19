@@ -602,12 +602,13 @@ EOF
 RUN chmod +x ~/start_services.sh
 
 # ============================================================================
-# FINAL CONFIGURATION
+# EXPOSE PORTS - NO COMMENTS AFTER NUMBERS!
 # ============================================================================
-# Expose necessary ports
-EXPOSE 8080  # VS Code
-EXPOSE 8082  # Manager Dashboard
-EXPOSE 25565 # Minecraft Server
+EXPOSE 8080
+EXPOSE 8082
+EXPOSE 25565
 
-# Set default command
+# ============================================================================
+# SET DEFAULT COMMAND
+# ============================================================================
 CMD ["bash", "-c", "~/start_services.sh"]
