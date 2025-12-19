@@ -56,26 +56,24 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # ============================================================================
-# CODE-SERVER INSTALLATION - FIXED URL
+# CODE-SERVER INSTALLATION - PINNED VERSION (FIXED)
 # ============================================================================
-# Get the LATEST version automatically
-RUN LATEST_VERSION=$(curl -s https://api.github.com/repos/coder/code-server/releases/latest | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
-    echo "Installing code-server version: $LATEST_VERSION" && \
+RUN VERSION="4.24.0" && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
-        ARCH="amd64"; \
+        ARCH_SUFFIX="amd64"; \
     elif [ "$ARCH" = "aarch64" ]; then \
-        ARCH="arm64"; \
+        ARCH_SUFFIX="arm64"; \
     else \
         echo "Unsupported architecture: $ARCH" && exit 1; \
     fi && \
-    # CORRECT URL FORMAT:
-    wget "https://github.com/coder/code-server/releases/download/v${LATEST_VERSION}/code-server_${LATEST_VERSION}_linux_${ARCH}.tar.gz" -O /tmp/code-server.tar.gz && \
+    # Verified URL pattern for v4.24.0
+    wget "https://github.com/coder/code-server/releases/download/v${VERSION}/code-server_${VERSION}_linux_${ARCH_SUFFIX}.tar.gz" -O /tmp/code-server.tar.gz && \
     tar -xzf /tmp/code-server.tar.gz -C /tmp && \
-    mv /tmp/code-server_${LATEST_VERSION}_linux_${ARCH} /usr/lib/code-server && \
+    mv /tmp/code-server_${VERSION}_linux_${ARCH_SUFFIX} /usr/lib/code-server && \
     ln -s /usr/lib/code-server/bin/code-server /usr/local/bin/code-server && \
     rm -f /tmp/code-server.tar.gz && \
-    echo "✅ code-server installed successfully"
+    echo "✅ code-server v${VERSION} installed successfully"
 
 # ============================================================================
 # CLOUDFLARED INSTALLATION
