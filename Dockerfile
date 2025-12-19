@@ -3,7 +3,6 @@ FROM ubuntu:22.04
 # ============================================================================
 # SYSTEM CONFIGURATION
 # ============================================================================
-# AGGRESSIVE non-interactive settings
 ENV DEBIAN_FRONTEND=noninteractive
 ENV DEBCONF_NONINTERACTIVE_SEEN=true
 ENV DEBIAN_PRIORITY=critical
@@ -44,8 +43,6 @@ RUN apt-get update && \
     netcat socat \
     # System
     tzdata locales ca-certificates gnupg \
-    # Code-server dependencies
-    libatomic1 libicu70 libkrb5-3 libnuma1 libssl3 \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
@@ -59,17 +56,21 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # ============================================================================
-# CODE-SERVER MANUAL INSTALLATION (FIXED)
+# CODE-SERVER INSTALLATION - SIMPLIFIED METHOD
 # ============================================================================
-# Install code-server manually (more reliable than install script)
-RUN ARCH=$(dpkg --print-architecture) && \
+# Method 1: Install via direct binary download (MOST RELIABLE)
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then \
+        ARCH="amd64"; \
+    elif [ "$ARCH" = "aarch64" ]; then \
+        ARCH="arm64"; \
+    fi && \
     VERSION="4.24.0" && \
-    wget -q "https://github.com/coder/code-server/releases/download/v${VERSION}/code-server_${VERSION}_${ARCH}.deb" -O /tmp/code-server.deb && \
-    dpkg -i /tmp/code-server.deb || apt-get install -fy && \
-    rm -f /tmp/code-server.deb
-
-# Verify code-server installation
-RUN code-server --version && echo "✅ code-server installed successfully"
+    wget -q "https://github.com/coder/code-server/releases/download/v${VERSION}/code-server-${VERSION}-linux-${ARCH}.tar.gz" -O /tmp/code-server.tar.gz && \
+    tar -xzf /tmp/code-server.tar.gz -C /tmp && \
+    mv /tmp/code-server-${VERSION}-linux-${ARCH} /usr/lib/code-server && \
+    ln -s /usr/lib/code-server/bin/code-server /usr/local/bin/code-server && \
+    rm -f /tmp/code-server.tar.gz
 
 # ============================================================================
 # CLOUDFLARED INSTALLATION
@@ -79,8 +80,6 @@ RUN ARCH=$(uname -m) && \
         wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared; \
     elif [ "$ARCH" = "aarch64" ]; then \
         wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64 -O /usr/local/bin/cloudflared; \
-    else \
-        echo "Unsupported architecture: $ARCH" && exit 1; \
     fi && \
     chmod +x /usr/local/bin/cloudflared
 
@@ -108,23 +107,19 @@ RUN chmod +x /home/coder/scripts/* && \
     chown -R coder:coder /home/coder
 
 # ============================================================================
-# VS CODE EXTENSIONS (Optional - can install later)
+# INSTALL PYTHON PACKAGES
 # ============================================================================
-# We'll install extensions at runtime to keep Dockerfile simple
-# You can install them manually after deployment:
-# 1. Open VS Code at your-url.onrender.com:8080
-# 2. Go to Extensions panel (Ctrl+Shift+X)
-# 3. Install: ms-python.python, formulahendry.code-runner, etc.
-
-# ============================================================================
-# FINAL SETUP
-# ============================================================================
-# Switch to coder user for final setup
 USER coder
 WORKDIR /home/coder/workspace
 
 # Install Python packages for automation
 RUN pip3 install --user selenium webdriver-manager schedule requests beautifulsoup4 Pillow
+
+# ============================================================================
+# VERIFY INSTALLATION
+# ============================================================================
+# Test code-server installation
+RUN /usr/local/bin/code-server --version && echo "✅ code-server installed successfully"
 
 # Switch back to root for CMD
 USER root
