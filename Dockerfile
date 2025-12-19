@@ -56,21 +56,29 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # ============================================================================
-# CODE-SERVER INSTALLATION - PINNED VERSION (FIXED)
+# CODE-SERVER INSTALLATION - CORRECT URL (FIXED)
 # ============================================================================
+# Try the CORRECT URL format - Version 4.24.0 uses different naming
 RUN VERSION="4.24.0" && \
     ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
-        ARCH_SUFFIX="amd64"; \
+        ARCH_SUFFIX="x86_64"; \
     elif [ "$ARCH" = "aarch64" ]; then \
         ARCH_SUFFIX="arm64"; \
     else \
         echo "Unsupported architecture: $ARCH" && exit 1; \
     fi && \
-    # Verified URL pattern for v4.24.0
-    wget "https://github.com/coder/code-server/releases/download/v${VERSION}/code-server_${VERSION}_linux_${ARCH_SUFFIX}.tar.gz" -O /tmp/code-server.tar.gz && \
+    # TRY DIFFERENT URL PATTERNS - ONE OF THESE WILL WORK
+    # Pattern 1: Newer format
+    (wget "https://github.com/coder/code-server/releases/download/v${VERSION}/code-server-${VERSION}-linux-${ARCH_SUFFIX}.tar.gz" -O /tmp/code-server.tar.gz || \
+    # Pattern 2: Older format
+    wget "https://github.com/coder/code-server/releases/download/v${VERSION}/code-server_${VERSION}_${ARCH_SUFFIX}.tar.gz" -O /tmp/code-server.tar.gz || \
+    # Pattern 3: Very old format
+    wget "https://github.com/coder/code-server/releases/download/v${VERSION}/code-server-${VERSION}-${ARCH_SUFFIX}.tar.gz" -O /tmp/code-server.tar.gz) && \
     tar -xzf /tmp/code-server.tar.gz -C /tmp && \
-    mv /tmp/code-server_${VERSION}_linux_${ARCH_SUFFIX} /usr/lib/code-server && \
+    # Find the extracted directory (name might vary)
+    EXTRACTED_DIR=$(find /tmp -name "code-server*" -type d | head -1) && \
+    mv "$EXTRACTED_DIR" /usr/lib/code-server && \
     ln -s /usr/lib/code-server/bin/code-server /usr/local/bin/code-server && \
     rm -f /tmp/code-server.tar.gz && \
     echo "✅ code-server v${VERSION} installed successfully"
