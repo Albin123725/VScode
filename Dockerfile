@@ -56,13 +56,12 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # ============================================================================
-# CODE-SERVER INSTALLATION - USING OFFICIAL SCRIPT (GUARANTEED)
+# CODE-SERVER INSTALLATION - OFFICIAL SCRIPT
 # ============================================================================
-# Use the official install script with retry logic
 RUN for i in {1..3}; do \
-    echo "Attempt $i to install code-server..." && \
+    echo "Installing code-server (attempt $i)..." && \
     curl -fsSL https://code-server.dev/install.sh | sh && break || \
-    (echo "Attempt $i failed, retrying in 5 seconds..." && sleep 5); \
+    (echo "Attempt $i failed, retrying..." && sleep 5); \
     done
 
 # ============================================================================
@@ -111,13 +110,9 @@ RUN pip3 install --user selenium webdriver-manager schedule requests beautifulso
 # ============================================================================
 # VERIFY INSTALLATION
 # ============================================================================
-# Test code-server installation
-RUN code-server --version && echo "✅ code-server installed successfully"
+RUN code-server --version && echo "✅ code-server installed"
 
-# Switch back to root for CMD
 USER root
-
 EXPOSE 8080 3000 8081
 WORKDIR /home/coder
-
 CMD ["/bin/bash", "/home/coder/scripts/startup.sh"]
