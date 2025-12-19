@@ -43,6 +43,8 @@ RUN apt-get update && \
     netcat socat \
     # System
     tzdata locales ca-certificates gnupg \
+    # SUDO for root access
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
@@ -56,7 +58,7 @@ ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
 # ============================================================================
-# CODE-SERVER INSTALLATION - OFFICIAL SCRIPT
+# CODE-SERVER INSTALLATION
 # ============================================================================
 RUN for i in {1..3}; do \
     echo "Installing code-server (attempt $i)..." && \
@@ -76,10 +78,14 @@ RUN ARCH=$(uname -m) && \
     chmod +x /usr/local/bin/cloudflared
 
 # ============================================================================
-# USER SETUP
+# USER SETUP WITH SUDO PRIVILEGES
 # ============================================================================
 RUN useradd -m -s /bin/bash coder && \
     echo "coder:coder" | chpasswd && \
+    # ADD CODER TO SUDOERS (NO PASSWORD REQUIRED)
+    usermod -aG sudo coder && \
+    echo "coder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers.d/coder && \
+    chmod 0440 /etc/sudoers.d/coder && \
     mkdir -p /home/coder/workspace && \
     mkdir -p /home/coder/.config/code-server && \
     mkdir -p /home/coder/scripts && \
@@ -112,7 +118,11 @@ RUN pip3 install --user selenium webdriver-manager schedule requests beautifulso
 # ============================================================================
 RUN code-server --version && echo "✅ code-server installed"
 
+# Verify sudo works
+RUN sudo whoami && echo "✅ Sudo access configured"
+
 USER root
 EXPOSE 8080 3000 8081
 WORKDIR /home/coder
+
 CMD ["/bin/bash", "/home/coder/scripts/startup.sh"]
