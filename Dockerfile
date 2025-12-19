@@ -1,54 +1,72 @@
 FROM ubuntu:22.04
 
-# Set environment variables to avoid interactive prompts
+# AGGRESSIVE non-interactive settings
 ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBCONF_NONINTERACTIVE_SEEN=true
 ENV DEBIAN_PRIORITY=critical
 ENV TZ=Etc/UTC
 
-# Configure keyboard to US English BEFORE any apt-get installs
-RUN echo "keyboard-configuration keyboard-configuration/layoutcode string us" > /tmp/keyboard-configuration.preseed && \
-    echo "keyboard-configuration keyboard-configuration/variantcode string" >> /tmp/keyboard-configuration.preseed && \
-    echo "keyboard-configuration keyboard-configuration/unsupported_config_options boolean true" >> /tmp/keyboard-configuration.preseed && \
-    debconf-set-selections /tmp/keyboard-configuration.preseed
+# Pre-seed ALL debconf questions
+RUN echo 'tzdata tzdata/Areas select Etc' | debconf-set-selections && \
+    echo 'tzdata tzdata/Zones/Etc select UTC' | debconf-set-selections && \
+    echo 'keyboard-configuration keyboard-configuration/layout select English (US)' | debconf-set-selections && \
+    echo 'keyboard-configuration keyboard-configuration/variant select English (US)' | debconf-set-selections && \
+    echo 'locales locales/locales_to_be_generated multiselect en_US.UTF-8 UTF-8' | debconf-set-selections && \
+    echo 'locales locales/default_environment_locale select en_US.UTF-8' | debconf-set-selections
 
-# Update and install essentials with auto-confirm
+# Update and install with forced defaults
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    # Basic tools
+    apt-get -y --no-install-recommends install \
+    keyboard-configuration \
+    && apt-get -y --no-install-recommends install \
     curl wget git nano vim tmux htop \
     build-essential software-properties-common \
     net-tools iputils-ping dnsutils \
-    # Programming languages
     python3 python3-pip python3-venv \
     nodejs npm \
     openjdk-17-jdk \
     golang-go \
-    # Browser automation
     chromium-browser chromium-chromedriver \
     unzip zip \
-    # For RDP backup (optional)
     xfce4 xfce4-goodies \
-    # File management
     rclone \
-    # Monitoring
     netcat socat \
-    # Fix timezone and locales
     tzdata locales \
     && rm -rf /var/lib/apt/lists/*
 
-# Set timezone and locale to US English
-RUN ln -fs /usr/share/zoneinfo/Etc/UTC /etc/localtime && \
-    echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
+# Set locale
+RUN echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
     locale-gen en_US.UTF-8 && \
     update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8
 ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-# Install code-server (latest)
+# Create user
+RUN useradd -m -s /bin/bash coder && \
+    echo "coder:coder" | chpasswd && \
+    mkdir -p /home/coder/workspace && \
+    mkdir -p /home/coder/.config/code-server && \
+    mkdir -p /home/coder/scripts && \
+    mkdir -p /home/coder/logs && \
+    mkdir -p /home/coder/.cookies && \
+    chown -R coder:coder /home/coder
+
+# Switch to coder user for code-server installation
+USER coder
+WORKDIR /home/coder
+
+# Install code-server as coder user
 RUN curl -fsSL https://code-server.dev/install.sh | sh
 
-# Install cloudflared
+# Install VS Code extensions as coder user
+RUN code-server --install-extension ms-python.python && \
+    code-server --install-extension ms-python.vscode-pylance && \
+    code-server --install-extension formulahendry.code-runner && \
+    code-server --install-extension eamodio.gitlens && \
+    code-server --install-extension yzhang.markdown-all-in-one
+
+# Install cloudflared as coder user
 RUN ARCH=$(uname -m) && \
     if [ "$ARCH" = "x86_64" ]; then \
         wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /usr/local/bin/cloudflared; \
@@ -57,36 +75,14 @@ RUN ARCH=$(uname -m) && \
     fi && \
     chmod +x /usr/local/bin/cloudflared
 
-# Create user with password 'coder' (change later)
-RUN useradd -m -s /bin/bash coder && \
-    echo "coder:coder" | chpasswd && \
-    mkdir -p /home/coder/workspace && \
-    mkdir -p /home/coder/.config/code-server && \
-    mkdir -p /home/coder/scripts && \
-    mkdir -p /home/coder/logs && \
-    chown -R coder:coder /home/coder
-
-# Copy configs
-COPY config.yaml /home/coder/.config/code-server/
-COPY startup.sh /home/coder/scripts/
-COPY health-server.py /home/coder/scripts/
+# Copy configs as coder user
+COPY --chown=coder:coder config.yaml /home/coder/.config/code-server/
+COPY --chown=coder:coder scripts/ /home/coder/scripts/
 
 # Set permissions
-RUN chmod +x /home/coder/scripts/* && \
-    chown -R coder:coder /home/coder
+RUN chmod +x /home/coder/scripts/*
 
-# VS Code extensions to pre-install
-USER coder
-WORKDIR /home/coder/workspace
-
-# Install Python extensions
-RUN code-server --install-extension ms-python.python \
-    --install-extension ms-python.vscode-pylance \
-    --install-extension formulahendry.code-runner \
-    --install-extension eamodio.gitlens \
-    --install-extension yzhang.markdown-all-in-one
-
-# Switch back to root for CMD
+# Switch back to root for startup
 USER root
 
 EXPOSE 8080 3000 8081
