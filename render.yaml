@@ -1,13 +1,9 @@
 services:
   - type: web
-    name: rdp-vscode-server
+    name: rdp-vscode
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /
     healthCheckTimeout: 30
     autoDeploy: true
-    disk:
-      name: rdp-desktop-data
-      mountPath: /home/coder
-      sizeGB: 1
