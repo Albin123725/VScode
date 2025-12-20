@@ -13,34 +13,25 @@ RUN echo "tzdata tzdata/Areas select Asia" > /tmp/tz.txt && \
     rm /tmp/tz.txt
 
 # ============================================================================
-# INSTALL EVERYTHING WITH AUTOMATIC CONFIGURATION
+# INSTALL EVERYTHING
 # ============================================================================
 RUN apt-get update && \
     apt-get install -y \
-    # System tools
     curl wget git sudo tzdata locales \
-    # Desktop environment
     xfce4 xfce4-goodies xfce4-terminal \
     xrdp xorgxrdp \
-    # RDP/VNC tools
     tightvncserver \
     x11vnc xvfb \
-    # Browser
     firefox chromium-browser \
-    # Programming
     python3 python3-pip \
-    # Utilities
-    htop neofetch vim nano \
+    htop vim nano \
     net-tools iputils-ping \
     unzip zip \
     && rm -rf /var/lib/apt/lists/*
 
-# ============================================================================
-# SET INDIAN LOCALE AND TIMEZONE
-# ============================================================================
+# Set Indian timezone
 RUN ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
-    echo "Asia/Kolkata" > /etc/timezone && \
-    dpkg-reconfigure -f noninteractive tzdata
+    echo "Asia/Kolkata" > /etc/timezone
 
 # ============================================================================
 # INSTALL CODE-SERVER
@@ -48,7 +39,7 @@ RUN ln -fs /usr/share/zoneinfo/Asia/Kolkata /etc/localtime && \
 RUN curl -fsSL https://code-server.dev/install.sh | sh
 
 # ============================================================================
-# CREATE USER WITH RDP ACCESS
+# CREATE USER
 # ============================================================================
 RUN useradd -m -s /bin/bash coder && \
     echo "coder:coder123" | chpasswd && \
@@ -58,233 +49,138 @@ RUN useradd -m -s /bin/bash coder && \
 # ============================================================================
 # CONFIGURE RDP SERVER
 # ============================================================================
-# Set up xrdp
 RUN echo "xfce4-session" > /home/coder/.xsession && \
     chown coder:coder /home/coder/.xsession
 
-# Configure xrdp for better performance
-RUN sed -i 's/port=3389/port=3390/g' /etc/xrdp/xrdp.ini && \
-    echo "[xrdp1]" >> /etc/xrdp/xrdp.ini && \
-    echo "name=Indian Desktop" >> /etc/xrdp/xrdp.ini && \
-    echo "lib=libvnc.so" >> /etc/xrdp/xrdp.ini && \
-    echo "username=coder" >> /etc/xrdp/xrdp.ini && \
-    echo "password=coder123" >> /etc/xrdp/xrdp.ini && \
-    echo "ip=127.0.0.1" >> /etc/xrdp/xrdp.ini && \
-    echo "port=5901" >> /etc/xrdp/xrdp.ini
+RUN sed -i 's/port=3389/port=3390/g' /etc/xrdp/xrdp.ini
 
-# ============================================================================
-# SETUP VNC FOR INDIAN DESKTOP
-# ============================================================================
+# Setup VNC
 RUN mkdir -p /home/coder/.vnc && \
     echo "coder123" | vncpasswd -f > /home/coder/.vnc/passwd && \
     chown -R coder:coder /home/coder/.vnc && \
     chmod 600 /home/coder/.vnc/passwd
 
 # ============================================================================
-# SWITCH TO USER AND SETUP DESKTOP
+# SWITCH TO USER
 # ============================================================================
 USER coder
 WORKDIR /home/coder
 
-# Set Indian locale for user
-RUN echo "export LANG=en_IN.UTF-8" >> ~/.bashrc && \
-    echo "export LANGUAGE=en_IN:en" >> ~/.bashrc && \
-    echo "export LC_ALL=en_IN.UTF-8" >> ~/.bashrc && \
-    echo "export TZ=Asia/Kolkata" >> ~/.bashrc
-
-# Create desktop environment with Indian settings
-RUN cat > ~/configure_indian_desktop.sh << 'EOF'
-#!/bin/bash
-# Set Indian keyboard layout
-setxkbmap -layout in
-
-# Create Indian desktop theme
-mkdir -p ~/.config/xfce4/xfconf/xfce-perchannel-xml
-cat > ~/.config/xfce4/xfconf/xfce-perchannel-xml/xsettings.xml << 'XML'
-<?xml version="1.0" encoding="UTF-8"?>
-<channel name="xsettings" version="1.0">
-  <property name="Net" type="empty">
-    <property name="ThemeName" type="string" value="Adwaita"/>
-    <property name="IconThemeName" type="string" value="Adwaita"/>
-    <property name="DoubleClickTime" type="int" value="250"/>
-    <property name="DoubleClickDistance" type="int" value="5"/>
-  </property>
-</channel>
-XML
-
-echo "Indian desktop configured!"
-EOF
+# Set Indian locale
+RUN echo "export TZ=Asia/Kolkata" >> ~/.bashrc
 
 # Create VNC start script
 RUN cat > ~/start_vnc.sh << 'EOF'
 #!/bin/bash
-echo "Starting VNC Server with Indian timezone (IST)..."
-echo "Current time: $(TZ=Asia/Kolkata date)"
-vncserver :1 -geometry 1280x720 -depth 24 -localhost no -name "Indian Desktop"
-echo "✅ VNC running on display :1 (port 5901)"
-echo "🔑 Password: coder123"
-echo "🕐 Timezone: Asia/Kolkata (IST)"
+vncserver :1 -geometry 1280x720 -depth 24 -localhost no
+echo "VNC running on port 5901"
+echo "Password: coder123"
 EOF
 
 # Create RDP start script
 RUN cat > ~/start_rdp.sh << 'EOF'
 #!/bin/bash
-echo "Starting RDP Server with Indian timezone (IST)..."
-echo "Current time: $(TZ=Asia/Kolkata date)"
 sudo systemctl start xrdp
-echo "✅ RDP running on port 3390"
-echo "👤 Username: coder"
-echo "🔑 Password: coder123"
-echo "🇮🇳 Region: India (IST)"
+echo "RDP running on port 3390"
+echo "Username: coder"
+echo "Password: coder123"
 EOF
 
-# Create Indian welcome desktop file
-RUN cat > ~/Desktop/WELCOME_INDIA.txt << 'EOF'
-╔═══════════════════════════════════════════════════╗
-║      🇮🇳 WELCOME TO INDIAN RDP DESKTOP 🇮🇳       ║
-╚═══════════════════════════════════════════════════╝
+# Create welcome file WITHOUT special characters
+RUN cat > ~/Desktop/WELCOME.txt << 'EOF'
+=================================================
+    INDIAN RDP DESKTOP SERVER
+=================================================
 
-📅 Timezone: Asia/Kolkata (IST)
-🕐 Current Time: $(date)
+Timezone: Asia/Kolkata (IST)
 
-🔧 Connection Information:
-   • RDP Port: 3390
-   • VNC Port: 5901  
-   • VS Code Web: http://localhost:8080
+Connection Information:
+- RDP Port: 3390
+- VNC Port: 5901
+- VS Code Web: http://localhost:8080
 
-👤 Login Credentials:
-   • Username: coder
-   • Password: coder123
+Login Credentials:
+- Username: coder
+- Password: coder123
 
-🌐 Available Applications:
-   • Firefox Web Browser
-   • Terminal
-   • VS Code (via browser)
-   • File Manager
+Available Applications:
+- Firefox Web Browser
+- Terminal
+- VS Code (via browser)
+- File Manager
 
-🚀 Quick Start Commands:
-   • ./start_rdp.sh    - Start RDP server
-   • ./start_vnc.sh    - Start VNC server
-   • ./setup_tunnel.sh - Setup external access
+Quick Start Commands:
+- ./start_rdp.sh    - Start RDP server
+- ./start_vnc.sh    - Start VNC server
+- ./setup_tunnel.sh - Setup external access
 
-📞 Support:
-   • Timezone: Asia/Kolkata
-   • Language: English
-   • Check logs: ~/logs/
+Support:
+- Timezone: Asia/Kolkata
+- Language: English
+- Check logs: ~/logs/
 EOF
 
 # ============================================================================
-# INSTALL CLOUDFLARED FOR TUNNELING
+# INSTALL CLOUDFLARED
 # ============================================================================
 RUN mkdir -p ~/.local/bin && \
     wget -q "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64" -O ~/.local/bin/cloudflared && \
     chmod +x ~/.local/bin/cloudflared
 
-# Create tunnel setup script
+# Create tunnel script
 RUN cat > ~/setup_tunnel.sh << 'EOF'
 #!/bin/bash
-echo "🌐 CLOUDFLARE TUNNEL SETUP FOR INDIAN DESKTOP"
-echo "=============================================="
-echo "Timezone: Asia/Kolkata (IST)"
+echo "CLOUDFLARE TUNNEL SETUP"
 echo ""
-echo "Steps to expose your Indian desktop:"
-echo "1. Login to Cloudflare:"
-echo "   ~/.local/bin/cloudflared tunnel login"
-echo ""
-echo "2. Create a tunnel:"
-echo "   ~/.local/bin/cloudflared tunnel create india-desktop"
-echo ""
-echo "3. Create config:"
-echo "   mkdir -p ~/.cloudflared"
-echo '   cat > ~/.cloudflared/config.yml << "CONFIG"'
-echo '   tunnel: YOUR_TUNNEL_ID'
-echo '   credentials-file: /home/coder/.cloudflared/cert.pem'
-echo '   ingress:'
-echo '     - hostname: desktop.yourdomain.com'
-echo '       service: rdp://localhost:3390'
-echo '     - hostname: vscode.yourdomain.com'
-echo '       service: http://localhost:8080'
-echo '     - service: http_status:404'
-echo '   CONFIG'
-echo ""
-echo "4. Run tunnel:"
-echo "   ~/.local/bin/cloudflared tunnel run india-desktop"
-echo ""
-echo "🇮🇳 Your Indian desktop will be available at:"
-echo "   RDP: desktop.yourdomain.com:3390"
-echo "   VS Code: https://vscode.yourdomain.com"
+echo "1. Login: ~/.local/bin/cloudflared tunnel login"
+echo "2. Create: ~/.local/bin/cloudflared tunnel create india-desktop"
+echo "3. Run: ~/.local/bin/cloudflared tunnel run india-desktop"
 EOF
 
 RUN chmod +x ~/*.sh
 
 # ============================================================================
-# VS CODE CONFIGURATION
+# VS CODE CONFIG
 # ============================================================================
 RUN mkdir -p ~/.config/code-server
-RUN cat > ~/.config/code-server/config.yaml << 'EOF'
-bind-addr: 0.0.0.0:8080
-auth: none
-cert: false
-disable-telemetry: true
-disable-update-check: true
-EOF
+RUN echo 'bind-addr: 0.0.0.0:8080' > ~/.config/code-server/config.yaml
+RUN echo 'auth: none' >> ~/.config/code-server/config.yaml
 
 # ============================================================================
-# CREATE STARTUP SCRIPT WITH INDIAN TIMEZONE
+# CREATE STARTUP SCRIPT
 # ============================================================================
-RUN cat > ~/start_indian_desktop.sh << 'EOF'
+RUN cat > ~/start_services.sh << 'EOF'
 #!/bin/bash
-# Set Indian timezone
-export TZ=Asia/Kolkata
-
-echo "╔═══════════════════════════════════════════════════╗"
-echo "║   🇮🇳 STARTING INDIAN RDP DESKTOP SERVER 🇮🇳    ║"
-echo "║         Timezone: Asia/Kolkata (IST)             ║"
-echo "║           Time: $(date)                         ║"
-echo "╚═══════════════════════════════════════════════════╝"
-echo ""
+echo "================================================"
+echo "   INDIAN RDP DESKTOP SERVER"
+echo "   Timezone: Asia/Kolkata"
+echo "================================================"
 
 # Start VS Code
-echo "🚀 Starting VS Code..."
-code-server --bind-addr 0.0.0.0:8080 --auth none > ~/logs/vscode.log 2>&1 &
+code-server --bind-addr 0.0.0.0:8080 --auth none &
 
-# Start RDP server
-echo "🖥️  Starting RDP Server..."
+# Start RDP
 sudo systemctl start xrdp
 
-# Start VNC server
-echo "🔌 Starting VNC Server..."
-vncserver :1 -geometry 1280x720 -depth 24 -localhost no -name "Indian Desktop" > ~/logs/vnc.log 2>&1 &
-
-# Configure Indian desktop
-echo "🇮🇳 Configuring Indian desktop settings..."
-bash ~/configure_indian_desktop.sh
+# Start VNC
+vncserver :1 -geometry 1280x720 -depth 24 -localhost no &
 
 echo ""
-echo "✅ ALL SERVICES STARTED SUCCESSFULLY!"
+echo "Services started!"
 echo ""
-echo "🔗 ACCESS METHODS:"
-echo "   1. VS Code Web: http://localhost:8080"
-echo "   2. RDP Desktop: localhost:3390"
-echo "      👤 Username: coder"
-echo "      🔑 Password: coder123"
-echo "   3. VNC Access: localhost:5901"
-echo "      🔑 Password: coder123"
+echo "Access URLs:"
+echo "VS Code: http://localhost:8080"
+echo "RDP: localhost:3390"
+echo "VNC: localhost:5901"
 echo ""
-echo "🛠️  AVAILABLE COMMANDS:"
-echo "   ./start_rdp.sh      - Start RDP server"
-echo "   ./start_vnc.sh      - Start VNC server"
-echo "   ./setup_tunnel.sh   - Setup external access"
-echo "   ./configure_indian_desktop.sh - Configure Indian settings"
+echo "Username: coder"
+echo "Password: coder123"
 echo ""
-echo "📁 Check desktop for WELCOME_INDIA.txt file"
-echo "=============================================="
 
-# Keep container running
 tail -f /dev/null
 EOF
 
-RUN chmod +x ~/start_indian_desktop.sh
+RUN chmod +x ~/start_services.sh
 
 # Create logs directory
 RUN mkdir -p ~/logs
@@ -297,6 +193,6 @@ EXPOSE 3390
 EXPOSE 5901
 
 # ============================================================================
-# SET DEFAULT COMMAND
+# DEFAULT COMMAND
 # ============================================================================
-CMD ["bash", "-c", "./start_indian_desktop.sh"]
+CMD ["bash", "-c", "./start_services.sh"]
