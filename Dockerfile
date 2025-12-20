@@ -86,6 +86,9 @@ echo "Username: coder"
 echo "Password: coder123"
 EOF
 
+# Create the Desktop directory first
+RUN mkdir -p ~/Desktop
+
 # Create welcome file WITHOUT special characters
 RUN cat > ~/Desktop/WELCOME.txt << 'EOF'
 =================================================
