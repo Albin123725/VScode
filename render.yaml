@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: rdp-vscode
+    name: indian-rdp-desktop
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
