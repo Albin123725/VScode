@@ -1,9 +1,7 @@
 services:
   - type: web
-    name: indian-rdp-desktop
+    name: indian-desktop
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
-    healthCheckPath: /
-    healthCheckTimeout: 30
     autoDeploy: true
