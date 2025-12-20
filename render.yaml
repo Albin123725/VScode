@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: minecraft-vscode
+    name: rdp-vscode-server
     env: docker
     dockerfilePath: ./Dockerfile
     plan: free
@@ -8,6 +8,6 @@ services:
     healthCheckTimeout: 30
     autoDeploy: true
     disk:
-      name: minecraft-data
-      mountPath: /home/coder/minecraft
+      name: rdp-desktop-data
+      mountPath: /home/coder
       sizeGB: 1
